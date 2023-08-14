@@ -29,10 +29,15 @@
     <py-script>
     import json
     import pyodide
+    import pandas
     from js import Bokeh, console, JSON
     from bokeh.embed import json_item
     from bokeh.plotting import figure
     from bokeh.resources import CDN
+    #
+    url = "https://www.data.jma.go.jp/stats/etrn/view/monthly_s3.php?prec_no=45&block_no=47682&year=&month=&day=&view=a2"
+    dfs = pd.read_html(url)
+    df = dfs[0]
     vegetables = ['Carrot', 'Onion', 'Potato', 'Cabbage', 'garlic']
     values = [15, 23, 34, 14, 12]
     pl = figure(x_range=vegetables, height=350, title="Vegetables Counts",
