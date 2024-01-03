@@ -120,7 +120,7 @@ const weatherCode = {
 }
 
 // ここのXXXXXX.jsonを変更する
-const url = "https://www.jma.go.jp/bosai/forecast/data/forecast/XXXXXX.json";
+const url = "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json";
 
 const dayList = ["日", "月", "火", "水", "木", "金", "土"];
 const weatherCodeList = new Array();
