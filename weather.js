@@ -159,6 +159,7 @@ fetch(url)
     const tempMin = document.getElementsByClassName("tempMin");
     const tempMax = document.getElementsByClassName("tempMax");
     const todayWeekdayCount = new Date(timeDefines[0]).getDay();
+    console.log("data:", data, "timeDefines:", timeDefines);
 
     weatherCodeList.forEach(function(el, i) {
       if (i === 0) {
