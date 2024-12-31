@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ビート音</title>
+</head>
+<body>
+  <h1>ビート音ジェネレーター</h1>
+  <label for="bpm">テンポ (BPM): </label>
+  <input type="number" id="bpm" value="120">
+  <button onclick="startBeats()">スタート</button>
+  <button onclick="stopBeats()">ストップ</button>
+  
+  <script>
+    let audioCtx, oscillator, intervalId;
+
+    function startBeats() {
+      const bpm = document.getElementById("bpm").value;
+      const interval = (60 / bpm) * 1000;
+
+      stopBeats(); // 念のため既存のビートを止める
+
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      
+      intervalId = setInterval(() => {
+        oscillator = audioCtx.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // 440Hz (A音)
+        
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // 音量調整
+        
+        oscillator.connect(gainNode).connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.1); // 短い音を鳴らす
+      }, interval);
+    }
+
+    function stopBeats() {
+      if (intervalId) clearInterval(intervalId);
+      if (oscillator) oscillator.disconnect();
+      if (audioCtx) audioCtx.close();
+    }
+  </script>
+</body>
+</html>
