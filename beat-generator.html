@@ -1,0 +1,39 @@
+<div>
+  <h2>ビート音ジェネレーター</h2>
+  <label for="bpm">テンポ (BPM):</label>
+  <input type="number" id="bpm" value="120" min="30" max="300">
+  <button onclick="startBeats()">スタート</button>
+  <button onclick="stopBeats()">ストップ</button>
+</div>
+
+<script>
+  let audioCtx, oscillator, intervalId;
+
+  function startBeats() {
+    const bpm = document.getElementById("bpm").value;
+    const interval = (60 / bpm) * 1000;
+
+    stopBeats(); // 既存の処理を停止
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    intervalId = setInterval(() => {
+      oscillator = audioCtx.createOscillator();
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
+
+      oscillator.connect(gainNode).connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.1);
+    }, interval);
+  }
+
+  function stopBeats() {
+    if (intervalId) clearInterval(intervalId);
+    if (oscillator) oscillator.disconnect();
+    if (audioCtx) audioCtx.close();
+  }
+</script>
