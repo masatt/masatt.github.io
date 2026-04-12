@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ナンプレソルバー</title>
+  <style>
+    :root {
+      --board-size: min(94vw, 520px);
+      --cell-size: calc(var(--board-size) / 9);
+      --line: #b8b8b8;
+      --thick: #222;
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --selected: #dbeafe;
+      --related: #eff6ff;
+      --fixed: #111827;
+      --user: #2563eb;
+      --error: #fecaca;
+      --button: #ffffff;
+      --button-border: #d1d5db;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      background: var(--bg);
+      color: #111827;
+    }
+
+    .app {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px 12px 24px;
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 8px;
+    }
+
+    .sub {
+      margin: 0 0 14px;
+      color: #4b5563;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .board-wrap {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+
+    .board {
+      width: var(--board-size);
+      height: var(--board-size);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      grid-template-rows: repeat(9, 1fr);
+      border: 2px solid var(--thick);
+      background: white;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    .cell {
+      width: 100%;
+      height: 100%;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(18px, 5vw, 30px);
+      font-weight: 700;
+      cursor: pointer;
+      background: white;
+    }
+
+    .cell:nth-child(9n) {
+      border-right: none;
+    }
+
+    .cell.row-2, .cell.row-5 {
+      border-bottom: 2px solid var(--thick);
+    }
+
+    .cell.col-2, .cell.col-5 {
+      border-right: 2px solid var(--thick);
+    }
+
+    .cell.related {
+      background: var(--related);
+    }
+
+    .cell.selected {
+      background: var(--selected);
+    }
+
+    .cell.fixed {
+      color: var(--fixed);
+    }
+
+    .cell.user {
+      color: var(--user);
+    }
+
+    .cell.error {
+      background: var(--error);
+    }
+
+    .controls {
+      margin-top: 14px;
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+
+    .pad {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--button-border);
+      background: var(--button);
+      border-radius: 12px;
+      min-height: 48px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .status {
+      min-height: 24px;
+      margin-top: 10px;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    @media (min-width: 700px) {
+      .app {
+        padding-top: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>ナンプレソルバー</h1>
+    <p class="sub">マスをタップして、下の数字ボタンで入力します。長押し不要。キーボードも出ません。</p>
+
+    <div class="board-wrap">
+      <div id="board" class="board"></div>
+    </div>
+
+    <div class="controls">
+      <div class="pad">
+        <button data-num="1">1</button>
+        <button data-num="2">2</button>
+        <button data-num="3">3</button>
+        <button data-num="4">4</button>
+        <button data-num="5">5</button>
+        <button data-num="6">6</button>
+        <button data-num="7">7</button>
+        <button data-num="8">8</button>
+        <button data-num="9">9</button>
+        <button id="eraseBtn">消す</button>
+      </div>
+
+      <div class="actions">
+        <button id="solveBtn">解く</button>
+        <button id="clearBtn">クリア</button>
+        <button id="sampleBtn">サンプル</button>
+      </div>
+
+      <div id="status" class="status"></div>
+      <div class="hint">入力済みの数字に矛盾があるマスは赤く表示されます。サンプルを読み込んで試せます。</div>
+    </div>
+  </div>
+
+  <script>
+    const SIZE = 9;
+    const boardEl = document.getElementById("board");
+    const statusEl = document.getElementById("status");
+
+    let board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+    let fixed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+    let selected = { row: 0, col: 0 };
+
+    function createBoard() {
+      boardEl.innerHTML = "";
+
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          const cell = document.createElement("div");
+          cell.className = `cell row-${row} col-${col}`;
+          cell.dataset.row = row;
+          cell.dataset.col = col;
+          cell.addEventListener("click", () => {
+            selected = { row, col };
+            render();
+          });
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function sameBox(r1, c1, r2, c2) {
+      return Math.floor(r1 / 3) === Math.floor(r2 / 3) &&
+             Math.floor(c1 / 3) === Math.floor(c2 / 3);
+    }
+
+    function isValidPlacement(grid, row, col, num) {
+      for (let c = 0; c < SIZE; c++) {
+        if (c !== col && grid[row][c] === num) return false;
+      }
+
+      for (let r = 0; r < SIZE; r++) {
+        if (r !== row && grid[r][col] === num) return false;
+      }
+
+      const sr = Math.floor(row / 3) * 3;
+      const sc = Math.floor(col / 3) * 3;
+
+      for (let r = sr; r < sr + 3; r++) {
+        for (let c = sc; c < sc + 3; c++) {
+          if ((r !== row || c !== col) && grid[r][c] === num) return false;
+        }
+      }
+
+      return true;
+    }
+
+    function getErrorSet(grid) {
+      const errors = new Set();
+
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          const num = grid[row][col];
+          if (num === 0) continue;
+          if (!isValidPlacement(grid, row, col, num)) {
+            errors.add(`${row}-${col}`);
+          }
+        }
+      }
+
+      return errors;
+    }
+
+    function render() {
+      const cells = document.querySelectorAll(".cell");
+      const errors = getErrorSet(board);
+
+      cells.forEach((cell) => {
+        const row = Number(cell.dataset.row);
+        const col = Number(cell.dataset.col);
+        const value = board[row][col];
+
+        cell.textContent = value === 0 ? "" : value;
+        cell.classList.remove("selected", "related", "fixed", "user", "error");
+
+        if (
+          row === selected.row ||
+          col === selected.col ||
+          sameBox(row, col, selected.row, selected.col)
+        ) {
+          cell.classList.add("related");
+        }
+
+        if (row === selected.row && col === selected.col) {
+          cell.classList.add("selected");
+        }
+
+        if (value !== 0) {
+          cell.classList.add(fixed[row][col] ? "fixed" : "user");
+        }
+
+        if (errors.has(`${row}-${col}`)) {
+          cell.classList.add("error");
+        }
+      });
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function inputNumber(num) {
+      const { row, col } = selected;
+      if (fixed[row][col]) {
+        setStatus("このマスは固定されています。");
+        return;
+      }
+
+      board[row][col] = num;
+      const errors = getErrorSet(board);
+
+      if (errors.size > 0) {
+        setStatus("入力に矛盾があります。");
+      } else {
+        setStatus("");
+      }
+
+      render();
+      moveToNextEmpty(row, col);
+    }
+
+    function eraseSelected() {
+      const { row, col } = selected;
+      if (fixed[row][col]) {
+        setStatus("このマスは固定されています。");
+        return;
+      }
+      board[row][col] = 0;
+      render();
+      setStatus("");
+    }
+
+    function moveToNextEmpty(row, col) {
+      for (let i = row * 9 + col + 1; i < 81; i++) {
+        const r = Math.floor(i / 9);
+        const c = i % 9;
+        if (!fixed[r][c] && board[r][c] === 0) {
+          selected = { row: r, col: c };
+          render();
+          return;
+        }
+      }
+    }
+
+    function findEmpty(grid) {
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          if (grid[row][col] === 0) return [row, col];
+        }
+      }
+      return null;
+    }
+
+    function solve(grid) {
+      const pos = findEmpty(grid);
+      if (!pos) return true;
+
+      const [row, col] = pos;
+
+      for (let num = 1; num <= 9; num++) {
+        if (isValidPlacement(grid, row, col, num)) {
+          grid[row][col] = num;
+          if (solve(grid)) return true;
+          grid[row][col] = 0;
+        }
+      }
+
+      return false;
+    }
+
+    function lockCurrentNumbers() {
+      fixed = board.map(row => row.map(v => v !== 0));
+    }
+
+    function clearAll() {
+      board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+      fixed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+      selected = { row: 0, col: 0 };
+      render();
+      setStatus("");
+    }
+
+    function loadSample() {
+      board = [
+        [5, 3, 0, 0, 7, 0, 0, 0, 0],
+        [6, 0, 0, 1, 9, 5, 0, 0, 0],
+        [0, 9, 8, 0, 0, 0, 0, 6, 0],
+        [8, 0, 0, 0, 6, 0, 0, 0, 3],
+        [4, 0, 0, 8, 0, 3, 0, 0, 1],
+        [7, 0, 0, 0, 2, 0, 0, 0, 6],
+        [0, 6, 0, 0, 0, 0, 2, 8, 0],
+        [0, 0, 0, 4, 1, 9, 0, 0, 5],
+        [0, 0, 0, 0, 8, 0, 0, 7, 9]
+      ];
+      fixed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+      selected = { row: 0, col: 0 };
+      render();
+      setStatus("サンプルを読み込みました。必要ならそのまま「解く」を押してください。");
+    }
+
+    document.querySelectorAll("[data-num]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        inputNumber(Number(btn.dataset.num));
+      });
+    });
+
+    document.getElementById("eraseBtn").addEventListener("click", eraseSelected);
+
+    document.getElementById("clearBtn").addEventListener("click", clearAll);
+
+    document.getElementById("sampleBtn").addEventListener("click", loadSample);
+
+    document.getElementById("solveBtn").addEventListener("click", () => {
+      const errors = getErrorSet(board);
+      if (errors.size > 0) {
+        setStatus("矛盾があるので解けません。赤いマスを直してください。");
+        render();
+        return;
+      }
+
+      lockCurrentNumbers();
+
+      const work = board.map(row => [...row]);
+      if (solve(work)) {
+        board = work;
+        render();
+        setStatus("解けました。");
+      } else {
+        render();
+        setStatus("この問題は解けませんでした。");
+      }
+    });
+
+    createBoard();
+    render();
+  </script>
+</body>
+</html>
