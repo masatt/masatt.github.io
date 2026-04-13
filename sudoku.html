@@ -3,22 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>ナンプレソルバー</title>
+  <title>ナンプレ 一手ずつソルバー</title>
   <style>
     :root {
-      --board-size: min(94vw, 520px);
+      --board-size: min(94vw, 560px);
       --cell-size: calc(var(--board-size) / 9);
-      --line: #b8b8b8;
+      --line: #c7c7c7;
       --thick: #222;
-      --bg: #f6f7fb;
+      --bg: #f4f6fb;
       --panel: #ffffff;
       --selected: #dbeafe;
-      --related: #eff6ff;
+      --related: #eef4ff;
       --fixed: #111827;
       --user: #2563eb;
+      --hinted: #059669;
       --error: #fecaca;
-      --button: #ffffff;
-      --button-border: #d1d5db;
+      --cand: #6b7280;
+      --btn-border: #d1d5db;
+      --btn-bg: #fff;
     }
 
     * {
@@ -34,9 +36,9 @@
     }
 
     .app {
-      max-width: 640px;
+      max-width: 720px;
       margin: 0 auto;
-      padding: 16px 12px 24px;
+      padding: 14px 10px 24px;
     }
 
     h1 {
@@ -44,14 +46,14 @@
       margin: 0 0 8px;
     }
 
-    .sub {
+    .desc {
       margin: 0 0 14px;
-      color: #4b5563;
       font-size: 14px;
+      color: #4b5563;
       line-height: 1.5;
     }
 
-    .board-wrap {
+    .panel {
       background: var(--panel);
       border-radius: 16px;
       padding: 10px;
@@ -66,34 +68,34 @@
       grid-template-columns: repeat(9, 1fr);
       grid-template-rows: repeat(9, 1fr);
       border: 2px solid var(--thick);
-      background: white;
-      touch-action: manipulation;
+      background: #fff;
       user-select: none;
+      touch-action: manipulation;
     }
 
     .cell {
-      width: 100%;
-      height: 100%;
+      position: relative;
       border-right: 1px solid var(--line);
       border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: clamp(18px, 5vw, 30px);
-      font-weight: 700;
+      background: #fff;
       cursor: pointer;
-      background: white;
+      overflow: hidden;
     }
 
     .cell:nth-child(9n) {
       border-right: none;
     }
 
-    .cell.row-2, .cell.row-5 {
+    .cell.row-2,
+    .cell.row-5 {
       border-bottom: 2px solid var(--thick);
     }
 
-    .cell.col-2, .cell.col-5 {
+    .cell.col-2,
+    .cell.col-5 {
       border-right: 2px solid var(--thick);
     }
 
@@ -105,24 +107,55 @@
       background: var(--selected);
     }
 
-    .cell.fixed {
-      color: var(--fixed);
-    }
-
-    .cell.user {
-      color: var(--user);
-    }
-
     .cell.error {
       background: var(--error);
     }
 
+    .cell.hinted {
+      background: #d1fae5;
+    }
+
+    .value {
+      font-size: clamp(18px, 5vw, 30px);
+      font-weight: 700;
+      line-height: 1;
+      z-index: 2;
+    }
+
+    .fixed .value {
+      color: var(--fixed);
+    }
+
+    .user .value {
+      color: var(--user);
+    }
+
+    .hinted .value {
+      color: var(--hinted);
+    }
+
+    .candidates {
+      position: absolute;
+      inset: 3px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      font-size: clamp(8px, 2.2vw, 12px);
+      color: var(--cand);
+      line-height: 1;
+      z-index: 1;
+    }
+
+    .cand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .controls {
       margin-top: 14px;
-      background: var(--panel);
-      border-radius: 16px;
-      padding: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      display: grid;
+      gap: 12px;
     }
 
     .pad {
@@ -131,13 +164,26 @@
       gap: 8px;
     }
 
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .sub-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
     button {
       appearance: none;
-      border: 1px solid var(--button-border);
-      background: var(--button);
+      border: 1px solid var(--btn-border);
+      background: var(--btn-bg);
       border-radius: 12px;
       min-height: 48px;
-      font-size: 18px;
+      padding: 8px 10px;
+      font-size: 16px;
       font-weight: 700;
       color: #111827;
       cursor: pointer;
@@ -147,65 +193,92 @@
       transform: scale(0.98);
     }
 
-    .actions {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 10px;
+    .status, .reason {
+      background: #fff;
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      font-size: 14px;
+      line-height: 1.6;
     }
 
     .status {
-      min-height: 24px;
-      margin-top: 10px;
-      font-size: 14px;
       color: #374151;
+      min-height: 48px;
     }
 
-    .hint {
+    .reason strong {
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .meta {
       margin-top: 8px;
       font-size: 12px;
       color: #6b7280;
       line-height: 1.5;
     }
 
-    @media (min-width: 700px) {
-      .app {
-        padding-top: 24px;
+    @media (max-width: 420px) {
+      button {
+        font-size: 14px;
+        min-height: 44px;
       }
     }
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>ナンプレソルバー</h1>
-    <p class="sub">マスをタップして、下の数字ボタンで入力します。長押し不要。キーボードも出ません。</p>
+    <h1>ナンプレ 一手ずつソルバー</h1>
+    <p class="desc">
+      マスをタップして数字を入力します。<br>
+      「1手進める」は人間向けの簡単な手筋だけを使います。
+    </p>
 
-    <div class="board-wrap">
+    <div class="panel">
       <div id="board" class="board"></div>
     </div>
 
     <div class="controls">
-      <div class="pad">
-        <button data-num="1">1</button>
-        <button data-num="2">2</button>
-        <button data-num="3">3</button>
-        <button data-num="4">4</button>
-        <button data-num="5">5</button>
-        <button data-num="6">6</button>
-        <button data-num="7">7</button>
-        <button data-num="8">8</button>
-        <button data-num="9">9</button>
-        <button id="eraseBtn">消す</button>
+      <div class="panel">
+        <div class="pad">
+          <button data-num="1">1</button>
+          <button data-num="2">2</button>
+          <button data-num="3">3</button>
+          <button data-num="4">4</button>
+          <button data-num="5">5</button>
+          <button data-num="6">6</button>
+          <button data-num="7">7</button>
+          <button data-num="8">8</button>
+          <button data-num="9">9</button>
+          <button id="eraseBtn">消す</button>
+        </div>
+
+        <div class="actions" style="margin-top:10px;">
+          <button id="stepBtn">1手進める</button>
+          <button id="solveBtn">全部解く</button>
+          <button id="toggleCandBtn">候補表示 ON</button>
+        </div>
+
+        <div class="sub-actions" style="margin-top:8px;">
+          <button id="lockBtn">入力を固定</button>
+          <button id="clearBtn">クリア</button>
+          <button id="sampleBtn">サンプル</button>
+        </div>
       </div>
 
-      <div class="actions">
-        <button id="solveBtn">解く</button>
-        <button id="clearBtn">クリア</button>
-        <button id="sampleBtn">サンプル</button>
+      <div id="status" class="status">準備OKです。</div>
+
+      <div id="reason" class="reason">
+        <strong>理由表示</strong><br>
+        まだ操作されていません。
       </div>
 
-      <div id="status" class="status"></div>
-      <div class="hint">入力済みの数字に矛盾があるマスは赤く表示されます。サンプルを読み込んで試せます。</div>
+      <div class="meta">
+        手筋は次の2種類です。<br>
+        1. 裸のシングル: そのマスに入る候補が1つしかない<br>
+        2. 隠れたシングル: 行・列・3×3ブロックの中で、その数字を置ける場所が1か所しかない
+      </div>
     </div>
   </div>
 
@@ -213,10 +286,14 @@
     const SIZE = 9;
     const boardEl = document.getElementById("board");
     const statusEl = document.getElementById("status");
+    const reasonEl = document.getElementById("reason");
+    const toggleCandBtn = document.getElementById("toggleCandBtn");
 
     let board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
     let fixed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
     let selected = { row: 0, col: 0 };
+    let showCandidates = true;
+    let lastHint = null;
 
     function createBoard() {
       boardEl.innerHTML = "";
@@ -236,9 +313,28 @@
       }
     }
 
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function setReason(title, text) {
+      reasonEl.innerHTML = `<strong>${escapeHtml(title)}</strong><br>${escapeHtml(text).replace(/\n/g, "<br>")}`;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
     function sameBox(r1, c1, r2, c2) {
       return Math.floor(r1 / 3) === Math.floor(r2 / 3) &&
              Math.floor(c1 / 3) === Math.floor(c2 / 3);
+    }
+
+    function boxIndex(row, col) {
+      return Math.floor(row / 3) * 3 + Math.floor(col / 3);
     }
 
     function isValidPlacement(grid, row, col, num) {
@@ -262,6 +358,17 @@
       return true;
     }
 
+    function getCandidates(grid, row, col) {
+      if (grid[row][col] !== 0) return [];
+      const result = [];
+      for (let num = 1; num <= 9; num++) {
+        if (isValidPlacement(grid, row, col, num)) {
+          result.push(num);
+        }
+      }
+      return result;
+    }
+
     function getErrorSet(grid) {
       const errors = new Set();
 
@@ -278,6 +385,15 @@
       return errors;
     }
 
+    function isSolved(grid) {
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          if (grid[row][col] === 0) return false;
+        }
+      }
+      return getErrorSet(grid).size === 0;
+    }
+
     function render() {
       const cells = document.querySelectorAll(".cell");
       const errors = getErrorSet(board);
@@ -287,8 +403,8 @@
         const col = Number(cell.dataset.col);
         const value = board[row][col];
 
-        cell.textContent = value === 0 ? "" : value;
-        cell.classList.remove("selected", "related", "fixed", "user", "error");
+        cell.innerHTML = "";
+        cell.classList.remove("selected", "related", "fixed", "user", "hinted", "error");
 
         if (
           row === selected.row ||
@@ -302,18 +418,36 @@
           cell.classList.add("selected");
         }
 
-        if (value !== 0) {
-          cell.classList.add(fixed[row][col] ? "fixed" : "user");
-        }
-
         if (errors.has(`${row}-${col}`)) {
           cell.classList.add("error");
         }
-      });
-    }
 
-    function setStatus(text) {
-      statusEl.textContent = text;
+        if (lastHint && row === lastHint.row && col === lastHint.col) {
+          cell.classList.add("hinted");
+        }
+
+        if (value !== 0) {
+          cell.classList.add(fixed[row][col] ? "fixed" : "user");
+          const valueEl = document.createElement("div");
+          valueEl.className = "value";
+          valueEl.textContent = value;
+          cell.appendChild(valueEl);
+        } else if (showCandidates) {
+          const cand = getCandidates(board, row, col);
+          const candWrap = document.createElement("div");
+          candWrap.className = "candidates";
+
+          for (let n = 1; n <= 9; n++) {
+            const span = document.createElement("div");
+            span.className = "cand";
+            span.textContent = cand.includes(n) ? n : "";
+            candWrap.appendChild(span);
+          }
+          cell.appendChild(candWrap);
+        }
+      });
+
+      toggleCandBtn.textContent = showCandidates ? "候補表示 ON" : "候補表示 OFF";
     }
 
     function inputNumber(num) {
@@ -324,16 +458,19 @@
       }
 
       board[row][col] = num;
+      lastHint = null;
+
       const errors = getErrorSet(board);
+      render();
 
       if (errors.size > 0) {
-        setStatus("入力に矛盾があります。");
+        setStatus("入力に矛盾があります。赤いマスを直してください。");
+        setReason("理由表示", `R${row + 1}C${col + 1} に ${num} を入れましたが、どこかで重複しています。`);
       } else {
-        setStatus("");
+        setStatus(`R${row + 1}C${col + 1} に ${num} を入力しました。`);
+        setReason("理由表示", `手入力で R${row + 1}C${col + 1} に ${num} を入れました。`);
+        moveToNextEditableEmpty(row, col);
       }
-
-      render();
-      moveToNextEmpty(row, col);
     }
 
     function eraseSelected() {
@@ -343,11 +480,13 @@
         return;
       }
       board[row][col] = 0;
+      lastHint = null;
       render();
-      setStatus("");
+      setStatus(`R${row + 1}C${col + 1} を空欄に戻しました。`);
+      setReason("理由表示", `R${row + 1}C${col + 1} を消去しました。`);
     }
 
-    function moveToNextEmpty(row, col) {
+    function moveToNextEditableEmpty(row, col) {
       for (let i = row * 9 + col + 1; i < 81; i++) {
         const r = Math.floor(i / 9);
         const c = i % 9;
@@ -359,42 +498,21 @@
       }
     }
 
-    function findEmpty(grid) {
-      for (let row = 0; row < SIZE; row++) {
-        for (let col = 0; col < SIZE; col++) {
-          if (grid[row][col] === 0) return [row, col];
-        }
-      }
-      return null;
-    }
-
-    function solve(grid) {
-      const pos = findEmpty(grid);
-      if (!pos) return true;
-
-      const [row, col] = pos;
-
-      for (let num = 1; num <= 9; num++) {
-        if (isValidPlacement(grid, row, col, num)) {
-          grid[row][col] = num;
-          if (solve(grid)) return true;
-          grid[row][col] = 0;
-        }
-      }
-
-      return false;
-    }
-
     function lockCurrentNumbers() {
       fixed = board.map(row => row.map(v => v !== 0));
+      render();
+      setStatus("現在の入力を固定しました。");
+      setReason("理由表示", "今入っている数字を問題の初期値として固定しました。");
     }
 
     function clearAll() {
       board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
       fixed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
       selected = { row: 0, col: 0 };
+      lastHint = null;
       render();
-      setStatus("");
+      setStatus("盤面をクリアしました。");
+      setReason("理由表示", "すべてのマスを空に戻しました。");
     }
 
     function loadSample() {
@@ -411,8 +529,183 @@
       ];
       fixed = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
       selected = { row: 0, col: 0 };
+      lastHint = null;
       render();
-      setStatus("サンプルを読み込みました。必要ならそのまま「解く」を押してください。");
+      setStatus("サンプルを読み込みました。必要なら「入力を固定」を押してから使ってください。");
+      setReason("理由表示", "サンプル問題を読み込みました。");
+    }
+
+    function findEmpty(grid) {
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          if (grid[row][col] === 0) return [row, col];
+        }
+      }
+      return null;
+    }
+
+    function solveBacktracking(grid) {
+      const pos = findEmpty(grid);
+      if (!pos) return true;
+
+      const [row, col] = pos;
+
+      for (let num = 1; num <= 9; num++) {
+        if (isValidPlacement(grid, row, col, num)) {
+          grid[row][col] = num;
+          if (solveBacktracking(grid)) return true;
+          grid[row][col] = 0;
+        }
+      }
+      return false;
+    }
+
+    function getNextStep(grid) {
+      // 1) Naked Single
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) {
+          if (grid[row][col] !== 0) continue;
+          const cand = getCandidates(grid, row, col);
+          if (cand.length === 1) {
+            return {
+              type: "naked-single",
+              row,
+              col,
+              value: cand[0],
+              title: "裸のシングル",
+              message: `R${row + 1}C${col + 1} には ${cand[0]} しか入れられません。候補が1つだけだからです。`
+            };
+          }
+        }
+      }
+
+      // 2) Hidden Single in Row
+      for (let row = 0; row < SIZE; row++) {
+        for (let num = 1; num <= 9; num++) {
+          const places = [];
+          for (let col = 0; col < SIZE; col++) {
+            if (grid[row][col] === 0 && isValidPlacement(grid, row, col, num)) {
+              places.push([row, col]);
+            }
+          }
+          if (places.length === 1) {
+            const [r, c] = places[0];
+            return {
+              type: "hidden-single-row",
+              row: r,
+              col: c,
+              value: num,
+              title: "隠れたシングル（行）",
+              message: `${row + 1}行目では ${num} を置ける場所が R${r + 1}C${c + 1} の1か所しかありません。`
+            };
+          }
+        }
+      }
+
+      // 3) Hidden Single in Column
+      for (let col = 0; col < SIZE; col++) {
+        for (let num = 1; num <= 9; num++) {
+          const places = [];
+          for (let row = 0; row < SIZE; row++) {
+            if (grid[row][col] === 0 && isValidPlacement(grid, row, col, num)) {
+              places.push([row, col]);
+            }
+          }
+          if (places.length === 1) {
+            const [r, c] = places[0];
+            return {
+              type: "hidden-single-col",
+              row: r,
+              col: c,
+              value: num,
+              title: "隠れたシングル（列）",
+              message: `${col + 1}列目では ${num} を置ける場所が R${r + 1}C${c + 1} の1か所しかありません。`
+            };
+          }
+        }
+      }
+
+      // 4) Hidden Single in Box
+      for (let box = 0; box < 9; box++) {
+        const sr = Math.floor(box / 3) * 3;
+        const sc = (box % 3) * 3;
+
+        for (let num = 1; num <= 9; num++) {
+          const places = [];
+          for (let row = sr; row < sr + 3; row++) {
+            for (let col = sc; col < sc + 3; col++) {
+              if (grid[row][col] === 0 && isValidPlacement(grid, row, col, num)) {
+                places.push([row, col]);
+              }
+            }
+          }
+          if (places.length === 1) {
+            const [r, c] = places[0];
+            return {
+              type: "hidden-single-box",
+              row: r,
+              col: c,
+              value: num,
+              title: "隠れたシングル（3×3）",
+              message: `${Math.floor(sr / 3) + 1}段目・${Math.floor(sc / 3) + 1}列目の3×3ブロックでは ${num} を置ける場所が R${r + 1}C${c + 1} の1か所しかありません。`
+            };
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function applyOneStep() {
+      const errors = getErrorSet(board);
+      if (errors.size > 0) {
+        setStatus("矛盾があるため一手を進められません。");
+        setReason("理由表示", "赤いマスを直してから再実行してください。");
+        render();
+        return;
+      }
+
+      if (isSolved(board)) {
+        setStatus("すでに解けています。");
+        setReason("理由表示", "盤面は完成しています。");
+        return;
+      }
+
+      const step = getNextStep(board);
+      if (!step) {
+        setStatus("簡単な手筋では次の1手が見つかりませんでした。");
+        setReason("理由表示", "裸のシングル / 隠れたシングルでは進められない状態です。全部解くは使用できます。");
+        return;
+      }
+
+      board[step.row][step.col] = step.value;
+      lastHint = { row: step.row, col: step.col };
+      selected = { row: step.row, col: step.col };
+      render();
+      setStatus(`R${step.row + 1}C${step.col + 1} に ${step.value} を入れました。`);
+      setReason(step.title, step.message);
+    }
+
+    function solveAll() {
+      const errors = getErrorSet(board);
+      if (errors.size > 0) {
+        setStatus("矛盾があるため全部解けません。");
+        setReason("理由表示", "赤いマスを直してから再実行してください。");
+        render();
+        return;
+      }
+
+      const work = board.map(row => [...row]);
+      if (solveBacktracking(work)) {
+        board = work;
+        lastHint = null;
+        render();
+        setStatus("全部解けました。");
+        setReason("理由表示", "全部解くではバックトラッキングも使って最終解まで埋めています。");
+      } else {
+        setStatus("この問題は解けませんでした。");
+        setReason("理由表示", "現在の入力条件では解が見つかりませんでした。");
+      }
     }
 
     document.querySelectorAll("[data-num]").forEach((btn) => {
@@ -422,30 +715,17 @@
     });
 
     document.getElementById("eraseBtn").addEventListener("click", eraseSelected);
-
+    document.getElementById("stepBtn").addEventListener("click", applyOneStep);
+    document.getElementById("solveBtn").addEventListener("click", solveAll);
+    document.getElementById("lockBtn").addEventListener("click", lockCurrentNumbers);
     document.getElementById("clearBtn").addEventListener("click", clearAll);
-
     document.getElementById("sampleBtn").addEventListener("click", loadSample);
 
-    document.getElementById("solveBtn").addEventListener("click", () => {
-      const errors = getErrorSet(board);
-      if (errors.size > 0) {
-        setStatus("矛盾があるので解けません。赤いマスを直してください。");
-        render();
-        return;
-      }
-
-      lockCurrentNumbers();
-
-      const work = board.map(row => [...row]);
-      if (solve(work)) {
-        board = work;
-        render();
-        setStatus("解けました。");
-      } else {
-        render();
-        setStatus("この問題は解けませんでした。");
-      }
+    toggleCandBtn.addEventListener("click", () => {
+      showCandidates = !showCandidates;
+      render();
+      setStatus(showCandidates ? "候補表示をONにしました。" : "候補表示をOFFにしました。");
+      setReason("理由表示", showCandidates ? "空きマスの候補数字を表示します。" : "候補数字を隠します。");
     });
 
     createBoard();
