@@ -3,106 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>セキュアMarkdownエディタ</title>
-    <!-- 安全なMarkdown解析ライブラリ (CDNから読み込み) -->
-    <script src="https://jsdelivr.net"></script>
+    <title>完全スタンドアロン・セキュアMarkdownエディタ</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: sans-serif; display: flex; flex-direction: column; height: 100dvh; background: #f9f9f9; color: #333; }
-        
-        /* ツールバー */
-        header { background: #333; color: white; padding: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+        html, body { height: 100%; margin: 0; padding: 0; box-sizing: border-box; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; background: #f9f9f9; color: #333; }
+        header { background: #333; color: white; padding: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; flex-shrink: 0; }
         .btn-group { display: flex; gap: 8px; }
         button { background: #444; color: white; border: 1px solid #666; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
         button:active { background: #555; }
-        
-        /* タブ切り替え（スマホ向け） */
-        .tabs { display: flex; background: #eee; border-bottom: 1px solid #ccc; }
+        .tabs { display: flex; background: #eee; border-bottom: 1px solid #ccc; flex-shrink: 0; }
         .tab { flex: 1; text-align: center; padding: 12px; font-size: 14px; background: #ddd; color: #666; cursor: pointer; border: none; font-weight: bold; }
         .tab.active { background: #fff; color: #333; border-bottom: 2px solid #4285f4; }
-        
-        /* メインコンテンツ領域 */
         .content-area { flex: 1; position: relative; background: #fff; overflow: hidden; }
         .pane { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; overflow-y: auto; padding: 15px; }
         .pane.active { display: block; }
-        
-        /* 入力エリア */
         textarea { width: 100%; height: 100%; border: none; resize: none; outline: none; font-family: monospace; font-size: 16px; line-height: 1.5; color: #333; background: transparent; }
-        
-        /* プレビュー装飾 */
         #preview h1 { border-bottom: 1px solid #ccc; padding-bottom: 5px; margin: 15px 0 10px; font-size: 1.4em; }
         #preview h2 { border-bottom: 1px solid #eee; padding-bottom: 3px; margin: 15px 0 10px; font-size: 1.2em; }
         #preview p { margin-bottom: 1em; font-size: 15px; line-height: 1.6; }
         #preview ul, #preview ol { padding-left: 20px; margin-bottom: 1em; }
         #preview li { margin-bottom: 0.3em; }
         #preview code { background: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
-        #preview pre { background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 1em; }
+        #preview pre { background: #eee; padding: 10px; border-radius: 5px; overflow-x: auto; margin-bottom: 1em; white-space: pre-wrap; }
         #preview blockquote { border-left: 4px solid #ccc; padding-left: 10px; color: #666; font-style: italic; margin-bottom: 1em; }
-        
-        /* トースト通知 */
-        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 1000; }
     </style>
 </head>
 <body>
 
 <header>
-    <span>🔒 完全ローカル・エディタ</span>
+    <span>🔒 完全ローカル・エディタ (通信ゼロ版)</span>
     <div class="btn-group">
         <button onclick="saveToPhone()">.md保存</button>
         <button onclick="clearText()">クリア</button>
     </div>
 </header>
 
-<!-- スマホ用入力/プレビュー切り替えタブ -->
 <div class="tabs">
     <button class="tab active" id="tab-edit" onclick="switchTab('edit')">編集・入力</button>
     <button class="tab" id="tab-view" onclick="switchTab('view')">プレビュー</button>
 </div>
 
 <div class="content-area">
-    <!-- 入力画面 -->
     <div class="pane active" id="pane-edit">
-        <textarea id="editor" placeholder="ここにMarkdownを入力してください...（ブラウザを閉じても自動保存されます）"></textarea>
+        <textarea id="editor" placeholder="ここにMarkdownを入力してください...（自動保存されます）"></textarea>
     </div>
-    <!-- プレビュー画面 -->
     <div id="preview" class="pane"></div>
 </div>
 
 <div id="toast"></div>
 
 <script>
+    // 外部ライブラリを使わず、超軽量な自作Markdown解析処理を内蔵
+    // 外部通信が発生しないため、セキュリティエラーやぐるぐるで止まることがありません
+    const simpleMarked = {
+        parse(text) {
+            if (!text) return '';
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // ブロック要素の処理
+            const lines = html.split('\n');
+            let inList = false;
+            let listType = ''; // 'ul' or 'ol'
+            let inCodeBlock = false;
+            let codeBuffer = [];
+            let result = [];
+
+            for (let line of lines) {
+                // コードブロックの処理
+                if (line.trim().startsWith('```')) {
+                    if (inCodeBlock) {
+                        result.push('<pre><code>' + codeBuffer.join('\n') + '</code></pre>');
+                        codeBuffer = [];
+                        inCodeBlock = false;
+                    } else {
+                        inCodeBlock = true;
+                    }
+                    continue;
+                }
+                if (inCodeBlock) {
+                    codeBuffer.push(line);
+                    continue;
+                }
+
+                // 見出し
+                if (line.startsWith('# ')) {
+                    result.push(`<h1>${line.substring(2)}</h1>`);
+                    continue;
+                }
+                if (line.startsWith('## ')) {
+                    result.push(`<h2>${line.substring(3)}</h2>`);
+                    continue;
+                }
+                if (line.startsWith('### ')) {
+                    result.push(`<h3>${line.substring(4)}</h3>`);
+                    continue;
+                }
+
+                // 引用
+                if (line.startsWith('> ')) {
+                    result.push(`<blockquote>${line.substring(2)}</blockquote>`);
+                    continue;
+                }
+
+                // 箇条書きリスト (ul)
+                if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
+                    if (!inList || listType !== 'ul') {
+                        if (inList) result.push(`</${listType}>`);
+                        result.push('<ul>');
+                        inList = true;
+                        listType = 'ul';
+                    }
+                    result.push(`<li>${line.trim().substring(2)}</li>`);
+                    continue;
+                }
+
+                // 番号付きリスト (ol)
+                if (/^\d+\.\s/.test(line.trim())) {
+                    if (!inList || listType !== 'ol') {
+                        if (inList) result.push(`</${listType}>`);
+                        result.push('<ol>');
+                        inList = true;
+                        listType = 'ol';
+                    }
+                    const index = line.indexOf('.') + 1;
+                    result.push(`<li>${line.trim().substring(index).trim()}</li>`);
+                    continue;
+                }
+
+                // リストの終了判定
+                if (inList && line.trim() === '') {
+                    result.push(`</${listType}>`);
+                    inList = false;
+                }
+
+                // 通常の段落
+                if (line.trim() !== '') {
+                    result.push(`<p>${line}</p>`);
+                }
+            }
+            if (inList) result.push(`</${listType}>`);
+            
+            html = result.join('\n');
+
+            // インライン要素の処理（太字、コード、リンク）
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/`(.*?)`/g, '<code>$1</code>');
+            html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+            return html;
+        }
+    };
+
     const editor = document.getElementById('editor');
     const preview = document.getElementById('preview');
 
-    // 1. 【自動読込】起動時にブラウザ内の安全な領域から過去のデータを読み込む
     window.addEventListener('DOMContentLoaded', () => {
-        const savedData = localStorage.getItem('local_md_data');
-        if (savedData) {
-            editor.value = savedData;
+        try {
+            const savedData = localStorage.getItem('local_md_data');
+            if (savedData) {
+                editor.value = savedData;
+            }
+            updatePreview();
+        } catch (e) {
+            console.error(e);
         }
-        updatePreview();
     });
 
-    // 2. 【自動保存】文字が入力されるたびにLocalStorage（スマホ内）に即時保存
     editor.addEventListener('input', () => {
-        localStorage.setItem('local_md_data', editor.value);
-        updatePreview();
+        try {
+            localStorage.setItem('local_md_data', editor.value);
+            updatePreview();
+        } catch (e) {
+            console.error(e);
+        }
     });
 
-    // Markdownのプレビュー更新処理
     function updatePreview() {
-        preview.innerHTML = marked.parse(editor.value || '<p style="color:#aaa;">（内容が空です）</p>');
+        preview.innerHTML = simpleMarked.parse(editor.value || '<p style="color:#aaa;">（内容が空です）</p>');
     }
 
-    // 3. 【ファイル書き出し】スマホ本体に「.mdファイル」としてダウンロード出力
     function saveToPhone() {
         const text = editor.value;
         if (!text) return showToast('内容が空です');
-        
         const blob = new Blob([text], { type: 'text/markdown;charset=utf-8;' });
         const link = document.createElement('a');
-        
-        // ファイル名は今日の日付
         const date = new Date().toISOString().slice(0,10);
         link.download = `memo_${date}.md`;
         link.href = URL.createObjectURL(blob);
@@ -110,7 +199,6 @@
         showToast('ファイルをダウンロードしました');
     }
 
-    // クリア機能
     function clearText() {
         if (confirm('内容をすべて消去しますか？')) {
             editor.value = '';
@@ -120,7 +208,6 @@
         }
     }
 
-    // タブ切り替え制御
     function switchTab(type) {
         document.getElementById('tab-edit').classList.toggle('active', type === 'edit');
         document.getElementById('tab-view').classList.toggle('active', type === 'view');
@@ -129,7 +216,6 @@
         if (type === 'view') updatePreview();
     }
 
-    // 簡易通知表示
     function showToast(msg) {
         const toast = document.getElementById('toast');
         toast.innerText = msg;
@@ -137,6 +223,5 @@
         setTimeout(() => toast.style.opacity = 0, 2000);
     }
 </script>
-
 </body>
 </html>
